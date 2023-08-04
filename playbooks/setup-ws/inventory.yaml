@@ -1,0 +1,7 @@
+all:
+  hosts:
+    ws0.dag.com:
+  vars:
+    ansible_user: user
+    ansible_password: password
+    base_dir: /playbooks/setup-ws

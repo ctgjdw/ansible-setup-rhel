@@ -1,0 +1,11 @@
+version: '3'
+
+services:
+    ansible:
+        build: .
+        tty: true
+        stdin_open: true
+        working_dir: /playbooks
+        network_mode: host
+        volumes:
+            - ./playbooks:/playbooks
