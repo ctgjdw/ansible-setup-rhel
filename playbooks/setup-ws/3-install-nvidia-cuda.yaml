@@ -1,0 +1,74 @@
+- name: Scan server and add its public key to known_hosts
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Create ssh folder
+      file:
+        path: ~/.ssh
+        state: directory
+      delegate_to: localhost
+
+    - name: Scan server for its public key and add key to known_hosts
+      shell: |
+        PUB_KEY=$(ssh-keyscan -H {{ inventory_hostname }})
+        echo $PUB_KEY > ~/.ssh/known_hosts
+      delegate_to: localhost
+
+- name: Copy and install CUDA and Nvidia Drivers
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Transfer over installers
+      copy:
+        src: "{{ base_dir }}/data/nvidia_cuda/"
+        dest: /home/{{ ansible_user }}/nvidia_cuda_install/
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Install dependencies
+      become: true
+      shell: |
+        yum install gcc make kernel-headers kernel-devel acpid libglvnd-glx libglvnd-opengl libglvnd-devel pkgconfig epel-release -y
+        cd /home/{{ ansible_user }}/cuda_install/vulkan
+        yum install *.rpm -y
+        cd /home/{{ ansible_user }}/cuda_install/dkms
+        yum install *.rpm -y
+
+    - name: Disable current graphics Drivers
+      become: true
+      shell: |
+        cat <<EOF | tee /etc/modprobe.d/blacklist-nouveau.conf
+        blacklist nouveau
+        options nouveau modeset=0
+        EOF
+        cp /etc/sysconfig/grub /etc/sysconfig/grub.bak
+        sed --in-place=.bak 's/rhgb quiet"/rhgb quiet rd.driver.blacklist=nouveau nouveau.modeset=0"/' /etc/default/grub
+        mv /boot/initramfs-$(uname -r).img /boot/initramfs-$(uname -r)-nouveau.img
+        dracut /boot/initramfs-$(uname -r).img $(uname -r)
+        grub2-mkconfig -o /boot/grub2/grub.cfg
+
+    - name: Reboot
+      become: true
+      reboot:
+        reboot_timeout: 2400
+
+    - name: Install Nvidia Drivers
+      become: true
+      shell: |
+        systemctl isolate multi-user.target
+        sh /home/{{ ansible_user }}/nvidia_cuda_install/NVIDIA-Linux-x86_64-*.run
+        nvidia-smi
+        systemctl set-default graphical.target
+
+    - name: Reboot
+      become: true
+      reboot:
+        reboot_timeout: 2400
+
+    - name: Install CUDA Drivers
+      become: true
+      shell: |
+        sh /home/{{ ansible_user }}/nvidia_cuda_install/cuda_*.run
+        nvcc --version

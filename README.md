@@ -11,3 +11,4 @@ Using docker
 1. `docker compose build`
 2. `docker compose run ansible`
 3. To run a playbook, e.g. `ansible-playbook -i ./setup-ws/inventory.yaml ./setup-ws/1-bootstrap-host.yaml -K -v`
+    - Enter the sudo (become) password when prompted
