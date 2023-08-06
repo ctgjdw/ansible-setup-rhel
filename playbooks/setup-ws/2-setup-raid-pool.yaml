@@ -1,0 +1,79 @@
+- name: Scan server and add its public key to known_hosts
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Create ssh folder
+      file:
+        path: ~/.ssh
+        state: directory
+      delegate_to: localhost
+
+    - name: Scan server for its public key and add key to known_hosts
+      shell: |
+        PUB_KEY=$(ssh-keyscan -H {{ inventory_hostname }})
+        echo $PUB_KEY > ~/.ssh/known_hosts
+      delegate_to: localhost
+
+- name: Setup mdadm
+  hosts: all
+  tasks:
+    - name: Install mdadm
+      yum:
+        name: mdadm
+        state: present
+      become: true
+
+- name: RAID pool hard disks and ssds
+  hosts: all
+  become: true
+  vars:
+    disks:
+      # - disk_names: # SSDs. Populate via `lsblk --fs` | grep nvme. Populate only those names on the top level.
+      #     - nvme0n1p1
+      #     - nvme2n1p1
+      #     - nvme3n1p1
+      #   raid_level: 5
+      #   disk_raid_dir: /dev/md0
+      #   pool_mount_dir: /mnt/pool-ssd
+      #   pool_permissions_mode_bits: 777
+      - disk_names: # Hard disks. Populate via `lsblk --fs` | grep sd. Populate only those names on the top level.
+          - sdb
+          - sdc
+          - sdd
+        raid_level: 5
+        disk_raid_dir: /dev/md1
+        pool_mount_dir: /mnt/pool-hdd
+        pool_permissions_mode_bits: 777
+
+  tasks:
+    - name: Fail if disks are already in RAID5
+      shell: |
+        dev_list=""
+        for drive in {{ item.disk_names | join(' ') }}; do dev_list+="/dev/$drive "; done
+        mdadm -E $dev_list
+      register: check_hdd_raid5
+      failed_when: check_hdd_raid5.rc == 0
+      loop: "{{ disks }}"
+
+    - name: Create Raid 5
+      shell: |
+        dev_list=""
+        for drive in {{ item.disk_names | join(' ') }}; do dev_list+="/dev/$drive "; done
+        mdadm --create {{ item.disk_raid_dir }} --level={{ item.raid_level }} \
+        --raid-devices={{ item.disk_names | length }} \
+        $dev_list
+      loop: "{{ disks }}"
+
+    - name: Create ext4 filesystem on raid pool
+      shell: |
+        mkfs.ext4 -L hddpartition {{ item.disk_raid_dir }}
+      loop: "{{ disks }}"
+
+    - name: Create mount for pool
+      shell: |
+        mkdir {{ item.pool_mount_dir }}
+        echo "{{ item.disk_raid_dir }}    {{ item.pool_mount_dir }}    ext4    defaults    0    0" >> /etc/fstab
+        mount -a
+        chmod {{ item.pool_permissions_mode_bits }} -R {{ item.pool_mount_dir }}
+      loop: "{{ disks }}"
