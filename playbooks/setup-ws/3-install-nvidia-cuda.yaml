@@ -1,20 +1,3 @@
-- name: Scan server and add its public key to known_hosts
-  hosts: all
-  gather_facts: false
-
-  tasks:
-    - name: Create ssh folder
-      file:
-        path: ~/.ssh
-        state: directory
-      delegate_to: localhost
-
-    - name: Scan server for its public key and add key to known_hosts
-      shell: |
-        PUB_KEY=$(ssh-keyscan -H {{ inventory_hostname }})
-        echo $PUB_KEY > ~/.ssh/known_hosts
-      delegate_to: localhost
-
 - name: Copy and install CUDA and Nvidia Drivers
   hosts: all
   gather_facts: false
