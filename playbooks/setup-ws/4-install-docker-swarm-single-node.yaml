@@ -1,0 +1,82 @@
+- name: Scan server and add its public key to known_hosts
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Create ssh folder
+      file:
+        path: ~/.ssh
+        state: directory
+      delegate_to: localhost
+
+    - name: Scan server for its public key and add key to known_hosts
+      shell: |
+        PUB_KEY=$(ssh-keyscan -H {{ inventory_hostname }})
+        echo $PUB_KEY > ~/.ssh/known_hosts
+      delegate_to: localhost
+
+- name: Install Docker ce
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install docker
+      yum:
+        name: "{{ packages }}"
+        state: present
+      vars:
+        packages:
+          - slirp4netns
+          - fuse-overlayfs
+          - container-selinux
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+
+    - name: Start docker
+      systemd:
+        name: docker
+        state: started
+        enabled: true
+
+- name: Install nvidia container toolkit
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install nvidia container toolkit
+      yum:
+        name: nvidia-container-toolkit
+        state: present
+
+    - name: Configure nvidia docker runtime
+      shell: |
+        nvidia-ctk runtime configure --runtime=docker
+
+- name: Finish installation
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Transfer docker daemon config
+      copy:
+        src: "{{ base_dir }}/configs/daemon.json"
+        dest: /etc/docker/daemon.json
+        owner: root
+        group: root
+
+    - name: Restart docker daemon
+      systemd:
+        name: docker
+        state: restarted
+
+    - name: Add user to docker group
+      shell: |
+        groupadd docker
+        usermod -aG docker {{ ansible_user }}
+
+    - name: Initiate docker swarm (single node)
+      shell: |
+        docker swarm init

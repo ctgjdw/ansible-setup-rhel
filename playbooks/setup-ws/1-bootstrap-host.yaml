@@ -24,6 +24,7 @@
         dest: /home/{{ ansible_user }}/yum_repos/
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
+        force: false
 
     - name: Setup yum repository config
       template:
