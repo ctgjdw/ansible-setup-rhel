@@ -29,14 +29,14 @@
   become: true
   vars:
     disks:
-      # - disk_names: # SSDs. Populate via `lsblk --fs` | grep nvme. Populate only those names on the top level.
-      #     - nvme0n1p1
-      #     - nvme2n1p1
-      #     - nvme3n1p1
-      #   raid_level: 5
-      #   disk_raid_dir: /dev/md0
-      #   pool_mount_dir: /mnt/pool-ssd
-      #   pool_permissions_mode_bits: 777
+      - disk_names: # SSDs. Populate via `lsblk --fs` | grep nvme. Populate only those names on the top level.
+          - nvme0n1p1
+          - nvme2n1p1
+          - nvme3n1p1
+        raid_level: 5
+        disk_raid_dir: /dev/md0
+        pool_mount_dir: /mnt/pool-ssd
+        pool_permissions_mode_bits: 777
       - disk_names: # Hard disks. Populate via `lsblk --fs` | grep sd. Populate only those names on the top level.
           - sdb
           - sdc
